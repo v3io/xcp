@@ -6,6 +6,7 @@ import (
 	"github.com/v3io/xcp/backends"
 	"github.com/v3io/xcp/common"
 	"github.com/v3io/xcp/copydir"
+	"os"
 )
 
 func main() {
@@ -23,7 +24,9 @@ func main() {
 	logger, _ := common.NewLogger(*logLevel)
 	args := flag.Args()
 	if len(args) != 2 {
-		panic(fmt.Errorf("Error missing source or destination: usage [flags] source dest"))
+		fmt.Println("Error missing source or destination: usage xcp [flags] source dest\n")
+		flag.Usage()
+		os.Exit(1)
 	}
 
 	src, err := common.UrlParse(args[0])

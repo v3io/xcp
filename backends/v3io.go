@@ -78,7 +78,7 @@ func (c *V3ioClient) getDir(path string, fileChan chan *FileDetails, summary *Li
 
 	resp, err := c.container.Sync.ListBucket(&v3io.ListBucketInput{Path: path})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed v3io ListBucket")
 	}
 	result := resp.Output.(*v3io.ListBucketOutput)
 

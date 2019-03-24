@@ -1,8 +1,8 @@
 package copydir
 
 import (
-	"fmt"
 	"github.com/nuclio/logger"
+	"github.com/pkg/errors"
 	"github.com/v3io/xcp/backends"
 	"io"
 	"path"
@@ -18,10 +18,10 @@ func RunTask(task *backends.CopyTask, logger logger.Logger, workers int) error {
 		task.Source.Path += "/"
 	}
 
-	logger.DebugWith("copy task", "from", task.Source, "to", task.Target)
+	logger.InfoWith("copy task", "from", task.Source, "to", task.Target)
 	client, err := backends.GetNewClient(logger, task.Source)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get list source")
 	}
 
 	errChan := make(chan error, 60)
@@ -30,7 +30,7 @@ func RunTask(task *backends.CopyTask, logger logger.Logger, workers int) error {
 		var err error
 		err = client.ListDir(fileChan, task, summary)
 		if err != nil {
-			errChan <- err
+			errChan <- errors.Wrap(err, "failed in list dir")
 		}
 	}(errChan)
 
@@ -41,13 +41,13 @@ func RunTask(task *backends.CopyTask, logger logger.Logger, workers int) error {
 			defer wg.Done()
 			src, err := backends.GetNewClient(logger, task.Source)
 			if err != nil {
-				errChan <- err
+				errChan <- errors.Wrap(err, "failed to get source")
 				return
 			}
 
 			dst, err := backends.GetNewClient(logger, task.Target)
 			if err != nil {
-				errChan <- err
+				errChan <- errors.Wrap(err, "failed to get target")
 				return
 			}
 
@@ -59,8 +59,7 @@ func RunTask(task *backends.CopyTask, logger logger.Logger, workers int) error {
 					"bucket", task.Target.Bucket, "size", f.Size, "mtime", f.Mtime)
 				err = copyFile(dst, src, f, targetPath)
 				if err != nil {
-					fmt.Println(err)
-					errChan <- err
+					errChan <- errors.Wrap(err, "failed in copy file")
 					break
 				}
 			}
@@ -70,12 +69,12 @@ func RunTask(task *backends.CopyTask, logger logger.Logger, workers int) error {
 	wg.Wait()
 	select {
 	case err := <-errChan:
-		fmt.Println("Err:", err)
+		logger.ErrorWith("copy loop failed", "err", err)
 	default:
 
 	}
 
-	fmt.Printf("Transferred - Total files: %d,  Total size: %d KB\n", summary.TotalFiles, summary.TotalBytes/1024)
+	logger.Info("Transferred - Total files: %d,  Total size: %d KB\n", summary.TotalFiles, summary.TotalBytes/1024)
 	return nil
 }
 
