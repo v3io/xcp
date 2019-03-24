@@ -78,6 +78,8 @@ func (c *V3ioClient) getDir(path string, fileChan chan *FileDetails, summary *Li
 
 	resp, err := c.container.Sync.ListBucket(&v3io.ListBucketInput{Path: path})
 	if err != nil {
+		c.logger.ErrorWith("ListBucket failed", "endpoint", c.params.Endpoint, "container",
+			c.params.Bucket, "path", path)
 		return errors.Wrap(err, "failed v3io ListBucket")
 	}
 	result := resp.Output.(*v3io.ListBucketOutput)
@@ -138,7 +140,6 @@ func (c *V3ioClient) getDir(path string, fileChan chan *FileDetails, summary *Li
 }
 
 func (c *V3ioClient) Reader(path string) (io.ReadCloser, error) {
-	//_, path = SplitPath(path)  // remove the container prefix
 	resp, err := c.container.Sync.GetObject(&v3io.GetObjectInput{Path: url.PathEscape(path)})
 	if err != nil {
 		return nil, fmt.Errorf("Error in GetObject operation (%v)", err)
