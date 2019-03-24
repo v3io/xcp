@@ -29,23 +29,31 @@ URL examples:
     /opt/xyz
     c:\windows\path
 ```
+<br>
+
+> Note:
+S3 credentials can be loaded from the standard environment variables (`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`)<br>
+v3io URL and credentials can be loaded from environment variables (`V3IO_API`, `V3IO_USERNAME`, `V3IO_PASSWORD`, `V3IO_ACCESS_KEY`)
+
 
 #### Flags
 ```
+  -r    
+        Recursive (go over child dirs)
   -f string
         filter string e.g. *.png
   -hidden
         include hidden files (start with '.')
+  -empty
+        include empty files (size=0)
   -m int
         maximum file size
   -n int
         minimum file size
-  -r    
-        Recursive (go over child dirs)
   -t string
         minimal file time e.g. 'now-7d' or RFC3339 date
   -v string
         log level: info | debug (default "debug")
   -w int
-        num of worker routines (default 1)
+        num of worker routines (default 8)
 ```

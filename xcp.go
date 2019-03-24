@@ -13,9 +13,10 @@ func main() {
 
 	recursive := flag.Bool("r", false, "Recursive (go over child dirs)")
 	hidden := flag.Bool("hidden", false, "include hidden files (start with '.')")
+	copyEmpty := flag.Bool("empty", false, "include empty files (size=0), ignored by default")
 	maxSize := flag.Int("m", 0, "maximum file size")
 	minSize := flag.Int("n", 0, "minimum file size")
-	workers := flag.Int("w", 1, "num of worker routines")
+	workers := flag.Int("w", 8, "num of worker routines")
 	filter := flag.String("f", "", "filter string e.g. *.png")
 	logLevel := flag.String("v", "debug", "log level: info | debug")
 	mtime := flag.String("t", "", "minimal file time e.g. 'now-7d' or RFC3339 date")
@@ -51,6 +52,7 @@ func main() {
 		MaxSize:   int64(*maxSize),
 		MinSize:   int64(*minSize),
 		Hidden:    *hidden,
+		CopyEmpty: *copyEmpty,
 	}
 
 	if err := copydir.RunTask(&task, logger, *workers); err != nil {
