@@ -54,7 +54,6 @@ func SplitPath(path string) (string, string) {
 }
 
 func (c *s3client) ListDir(fileChan chan *FileDetails, task *CopyTask, summary *ListSummary) error {
-	//bucket, keyPrefix := SplitPath(c.params.Path)
 	doneCh := make(chan struct{})
 	defer close(doneCh)
 	defer close(fileChan)
@@ -70,23 +69,8 @@ func (c *s3client) ListDir(fileChan chan *FileDetails, task *CopyTask, summary *
 		}
 
 		_, name := filepath.Split(obj.Key)
-		if !task.Hidden && strings.HasPrefix(name, ".") {
+		if !IsMatch(task, name, obj.LastModified, obj.Size) {
 			continue
-		}
-
-		if !task.Since.IsZero() && obj.LastModified.Before(task.Since) {
-			continue
-		}
-
-		if (obj.Size < task.MinSize) || (task.MaxSize > 0 && obj.Size > task.MaxSize) {
-			continue
-		}
-
-		if task.Filter != "" {
-			match, err := filepath.Match(task.Filter, name)
-			if err != nil || !match {
-				continue
-			}
 		}
 
 		c.logger.DebugWith("List dir:", "key", obj.Key, "modified", obj.LastModified, "size", obj.Size)

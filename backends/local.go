@@ -28,34 +28,20 @@ func (c *LocalClient) ListDir(fileChan chan *FileDetails, task *CopyTask, summar
 	visit := func(localPath string, fi os.FileInfo, err error) error {
 		localPath = filepath.ToSlash(localPath)
 
-		if !task.Hidden && strings.HasPrefix(fi.Name(), ".") {
-			if fi.IsDir() {
+		if fi.IsDir() {
+			relPath := strings.TrimPrefix(localPath, filepath.ToSlash(c.params.Path))
+			if (relPath != "" && !task.Recursive) || (!task.Hidden && strings.HasPrefix(fi.Name(), ".")) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		if fi.IsDir() {
-			relPath := strings.TrimPrefix(localPath, filepath.ToSlash(c.params.Path))
-			if relPath != "" && !task.Recursive {
-				return filepath.SkipDir
-			}
-			return nil
-		}
 		if fi.Mode()&os.ModeSymlink != 0 {
 			return nil
 		}
-		if !task.Since.IsZero() && fi.ModTime().Before(task.Since) {
+
+		if !IsMatch(task, fi.Name(), fi.ModTime(), fi.Size()) {
 			return nil
-		}
-		if (fi.Size() < task.MinSize) || (task.MaxSize > 0 && fi.Size() > task.MaxSize) {
-			return nil
-		}
-		if task.Filter != "" {
-			match, err := filepath.Match(task.Filter, fi.Name())
-			if err != nil || !match {
-				return err
-			}
 		}
 
 		fileDetails := &FileDetails{

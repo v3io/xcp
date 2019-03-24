@@ -30,7 +30,6 @@ type V3ioClientOpts struct {
 	SessionKey     string `json:"sessionKey,omitempty"`
 	// Logging level (for verbose output) - "debug" | "info" | "warn" | "error"
 	LogLevel string `json:"logLevel,omitempty"`
-	// Number of parallel V3IO worker routines
 }
 
 type V3ioClient struct {
@@ -90,29 +89,15 @@ func (c *V3ioClient) getDir(path string, fileChan chan *FileDetails, summary *Li
 			continue
 		}
 
-		_, name := filepath.Split(obj.Key)
-		if !c.task.Hidden && strings.HasPrefix(name, ".") {
-			continue
-		}
-
 		t, err := time.Parse(time.RFC3339, obj.LastModified+"Z")
 		if err != nil {
 			return errors.Wrap(err, "Invalid object time string - not an RFC 3339 time format.")
 		}
-		if !c.task.Since.IsZero() && t.Before(c.task.Since) {
-			continue
-		}
-
 		size := int64(obj.Size)
-		if (size < c.task.MinSize) || (c.task.MaxSize > 0 && size > c.task.MaxSize) {
-			continue
-		}
+		_, name := filepath.Split(obj.Key)
 
-		if c.task.Filter != "" {
-			match, err := filepath.Match(c.task.Filter, name)
-			if err != nil || !match {
-				continue
-			}
+		if !IsMatch(c.task, name, t, size) {
+			continue
 		}
 
 		c.logger.DebugWith("List dir:", "key", obj.Key, "modified", obj.LastModified, "size", obj.Size)

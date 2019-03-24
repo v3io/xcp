@@ -29,6 +29,7 @@ type CopyTask struct {
 	MaxSize   int64
 	Filter    string
 	Recursive bool
+	CopyEmpty bool
 	Hidden    bool
 }
 
@@ -108,4 +109,31 @@ func defaultFromEnv(param string, envvar string) string {
 		param = os.Getenv(envvar)
 	}
 	return param
+}
+
+func IsMatch(task *CopyTask, name string, mtime time.Time, size int64) bool {
+	if !task.CopyEmpty && size == 0 {
+		return false
+	}
+
+	if !task.Hidden && strings.HasPrefix(name, ".") {
+		return false
+	}
+
+	if !task.Since.IsZero() && mtime.Before(task.Since) {
+		return false
+	}
+
+	if (size < task.MinSize) || (task.MaxSize > 0 && size > task.MaxSize) {
+		return false
+	}
+
+	if task.Filter != "" {
+		match, err := filepath.Match(task.Filter, name)
+		if err != nil || !match {
+			return false
+		}
+	}
+
+	return true
 }
