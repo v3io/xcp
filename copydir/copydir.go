@@ -10,11 +10,15 @@ import (
 	"sync"
 )
 
+func endWithSlash(path string) bool {
+	return strings.HasSuffix(path, "/") || strings.HasSuffix(path, "\\")
+}
+
 func RunTask(task *backends.CopyTask, logger logger.Logger, workers int) error {
 	fileChan := make(chan *backends.FileDetails, 1000)
 	summary := &backends.ListSummary{}
 
-	if !(strings.HasSuffix(task.Source.Path, "/") || strings.HasSuffix(task.Source.Path, "\\")) {
+	if task.Source.Path != "" && !endWithSlash(task.Source.Path) {
 		task.Source.Path += "/"
 	}
 
