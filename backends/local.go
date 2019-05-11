@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type LocalClient struct {
@@ -68,11 +69,38 @@ func (c *LocalClient) Writer(path string, opts *WriteOptions) (io.WriteCloser, e
 		return nil, err
 	}
 
-	return os.OpenFile(
+	mode := uint32(0666)
+	if opts != nil && opts.Mode > 0 {
+		mode = opts.Mode
+	}
+
+	f, err := os.OpenFile(
 		path,
 		os.O_WRONLY|os.O_TRUNC|os.O_CREATE,
-		0666,
+		os.FileMode(mode),
 	)
+
+	if err != nil || opts == nil || opts.Mtime.IsZero() {
+		return f, err
+	}
+
+	return &fileWriter{f: f, mtime: opts.Mtime, path: path}, nil
 }
 
-// err = os.Chtimes(filename, currenttime, currenttime)
+type fileWriter struct {
+	f     *os.File
+	mtime time.Time
+	path  string
+}
+
+func (w *fileWriter) Write(p []byte) (n int, err error) {
+	return w.f.Write(p)
+}
+
+func (w *fileWriter) Close() error {
+	err := w.f.Close()
+	if err != nil {
+		return err
+	}
+	return os.Chtimes(w.path, w.mtime, w.mtime)
+}

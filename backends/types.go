@@ -13,17 +13,6 @@ import (
 const OriginalMtimeKey = "original_mtime"
 const OriginalModeKey = "original_mode"
 
-type FileSearcher struct {
-	SourcePath string
-	TargetPath string
-	Since      time.Time
-	MinSize    int64
-	MaxSize    int64
-	Filter     string
-	Recursive  bool
-	Hidden     bool
-}
-
 type ListDirTask struct {
 	Source    *PathParams
 	Since     time.Time
