@@ -22,7 +22,7 @@ func NewLocalClient(logger logger.Logger, params *PathParams) (FSClient, error) 
 	return &LocalClient{logger: logger, params: params}, err
 }
 
-func (c *LocalClient) ListDir(fileChan chan *FileDetails, task *CopyTask, summary *ListSummary) error {
+func (c *LocalClient) ListDir(fileChan chan *FileDetails, task *ListDirTask, summary *ListSummary) error {
 	defer close(fileChan)
 
 	visit := func(localPath string, fi os.FileInfo, err error) error {
@@ -45,7 +45,7 @@ func (c *LocalClient) ListDir(fileChan chan *FileDetails, task *CopyTask, summar
 		}
 
 		fileDetails := &FileDetails{
-			Key: localPath, Size: fi.Size(), Mtime: fi.ModTime(),
+			Key: localPath, Size: fi.Size(), Mtime: fi.ModTime(), Mode: uint32(fi.Mode()), OriginalMtime: fi.ModTime(),
 		}
 		c.logger.DebugWith("List file", "key", localPath, "modified", fi.ModTime(), "size", fi.Size())
 
@@ -63,7 +63,7 @@ func (c *LocalClient) Reader(path string) (io.ReadCloser, error) {
 	return os.Open(path)
 }
 
-func (c *LocalClient) Writer(path string) (io.WriteCloser, error) {
+func (c *LocalClient) Writer(path string, opts *WriteOptions) (io.WriteCloser, error) {
 	if err := ValidFSTarget(path); err != nil {
 		return nil, err
 	}
@@ -74,3 +74,5 @@ func (c *LocalClient) Writer(path string) (io.WriteCloser, error) {
 		0666,
 	)
 }
+
+// err = os.Chtimes(filename, currenttime, currenttime)

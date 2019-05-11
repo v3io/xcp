@@ -63,6 +63,7 @@ func UrlParse(fullpath string) (*backends.PathParams, error) {
 	case "s3":
 		// TODO: region url
 		pathParams.Bucket = u.Host
+		pathParams.Path = u.Path
 	case "v3io", "v3ios":
 		pathParams.Secure = (pathParams.Kind == "v3ios")
 		pathParams.Kind = "v3io"

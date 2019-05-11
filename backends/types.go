@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+const OriginalMtimeKey = "original_mtime"
+const OriginalModeKey = "original_mode"
+
 type FileSearcher struct {
 	SourcePath string
 	TargetPath string
@@ -21,22 +24,23 @@ type FileSearcher struct {
 	Hidden     bool
 }
 
-type CopyTask struct {
+type ListDirTask struct {
 	Source    *PathParams
-	Target    *PathParams
 	Since     time.Time
 	MinSize   int64
 	MaxSize   int64
 	Filter    string
 	Recursive bool
-	CopyEmpty bool
+	InclEmpty bool
 	Hidden    bool
 }
 
 type FileDetails struct {
-	Key   string
-	Mtime time.Time
-	Size  int64
+	Key           string
+	Mtime         time.Time
+	OriginalMtime time.Time
+	Mode          uint32
+	Size          int64
 }
 
 type ListSummary struct {
@@ -56,10 +60,15 @@ type PathParams struct {
 	Token    string `json:"token,omitempty"`
 }
 
+type WriteOptions struct {
+	Mtime time.Time
+	Mode  uint32
+}
+
 type FSClient interface {
-	ListDir(fileChan chan *FileDetails, task *CopyTask, summary *ListSummary) error
+	ListDir(fileChan chan *FileDetails, task *ListDirTask, summary *ListSummary) error
 	Reader(path string) (io.ReadCloser, error)
-	Writer(path string) (io.WriteCloser, error)
+	Writer(path string, opts *WriteOptions) (io.WriteCloser, error)
 }
 
 func GetNewClient(logger logger.Logger, params *PathParams) (FSClient, error) {
@@ -111,8 +120,8 @@ func defaultFromEnv(param string, envvar string) string {
 	return param
 }
 
-func IsMatch(task *CopyTask, name string, mtime time.Time, size int64) bool {
-	if !task.CopyEmpty && size == 0 {
+func IsMatch(task *ListDirTask, name string, mtime time.Time, size int64) bool {
+	if !task.InclEmpty && size == 0 {
 		return false
 	}
 

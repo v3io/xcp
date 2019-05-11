@@ -36,7 +36,7 @@ type V3ioClient struct {
 	params    *PathParams
 	container *v3io.Container
 	logger    logger.Logger
-	task      *CopyTask
+	task      *ListDirTask
 	path      string
 }
 
@@ -64,7 +64,7 @@ func NewV3ioClient(logger logger.Logger, params *PathParams) (FSClient, error) {
 	return &newClient, err
 }
 
-func (c *V3ioClient) ListDir(fileChan chan *FileDetails, task *CopyTask, summary *ListSummary) error {
+func (c *V3ioClient) ListDir(fileChan chan *FileDetails, task *ListDirTask, summary *ListSummary) error {
 	//bucket, keyPrefix := splitPath(searcher.Path)
 	defer close(fileChan)
 	c.task = task
@@ -145,7 +145,7 @@ func (r v3ioReader) Close() error {
 	return nil
 }
 
-func (c *V3ioClient) Writer(path string) (io.WriteCloser, error) {
+func (c *V3ioClient) Writer(path string, opts *WriteOptions) (io.WriteCloser, error) {
 	return &v3ioWriter{path: path, container: c.container}, nil
 }
 

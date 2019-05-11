@@ -9,7 +9,9 @@ import (
 	"github.com/pkg/errors"
 	"io"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type s3client struct {
@@ -46,6 +48,9 @@ func NewS3Client(logger logger.Logger, params *PathParams) (FSClient, error) {
 }
 
 func SplitPath(path string) (string, string) {
+	if strings.HasPrefix(path, "/") {
+		path = path[1:]
+	}
 	parts := strings.Split(path, "/")
 	if len(parts) <= 1 {
 		return path, ""
@@ -53,7 +58,7 @@ func SplitPath(path string) (string, string) {
 	return parts[0], path[len(parts[0])+1:]
 }
 
-func (c *s3client) ListDir(fileChan chan *FileDetails, task *CopyTask, summary *ListSummary) error {
+func (c *s3client) ListDir(fileChan chan *FileDetails, task *ListDirTask, summary *ListSummary) error {
 	doneCh := make(chan struct{})
 	defer close(doneCh)
 	defer close(fileChan)
@@ -73,9 +78,24 @@ func (c *s3client) ListDir(fileChan chan *FileDetails, task *CopyTask, summary *
 			continue
 		}
 
+		var mode uint32
+		if obj.Metadata.Get(OriginalModeKey) != "" {
+			if i, err := strconv.Atoi(obj.Metadata.Get(OriginalModeKey)); err == nil {
+				mode = uint32(i)
+			}
+		}
+
+		var originalTime time.Time
+		if obj.Metadata.Get(OriginalMtimeKey) != "" {
+			if t, err := time.Parse(time.RFC3339, obj.Metadata.Get(OriginalMtimeKey)); err == nil {
+				originalTime = t
+			}
+		}
+
 		c.logger.DebugWith("List dir:", "key", obj.Key, "modified", obj.LastModified, "size", obj.Size)
 		fileDetails := &FileDetails{
-			Key: c.params.Bucket + "/" + obj.Key, Size: obj.Size, Mtime: obj.LastModified,
+			Key: c.params.Bucket + "/" + obj.Key, Size: obj.Size,
+			Mtime: obj.LastModified, Mode: mode, OriginalMtime: originalTime,
 		}
 
 		summary.TotalBytes += obj.Size
@@ -108,14 +128,16 @@ func (c *s3client) Reader(path string) (io.ReadCloser, error) {
 	return obj, nil
 }
 
-func (c *s3client) Writer(path string) (io.WriteCloser, error) {
-	return &s3Writer{path: path, minioClient: c.minioClient}, nil
+func (c *s3client) Writer(path string, opts *WriteOptions) (io.WriteCloser, error) {
+	return &s3Writer{bucket: c.params.Bucket, path: path, client: c, opts: opts}, nil
 }
 
 type s3Writer struct {
-	path        string
-	buf         []byte
-	minioClient *minio.Client
+	bucket string
+	path   string
+	buf    []byte
+	opts   *WriteOptions
+	client *s3client
 }
 
 func (w *s3Writer) Write(p []byte) (n int, err error) {
@@ -124,8 +146,21 @@ func (w *s3Writer) Write(p []byte) (n int, err error) {
 }
 
 func (w *s3Writer) Close() error {
-	bucket, objectName := SplitPath(w.path)
 	r := bytes.NewReader(w.buf)
-	_, err := w.minioClient.PutObject(bucket, objectName, r, int64(len(w.buf)), minio.PutObjectOptions{})
+	opts := minio.PutObjectOptions{}
+	if w.opts != nil {
+		// optionally set metadata keys with original mode and mtime
+		opts.UserMetadata = map[string]string{OriginalMtimeKey: w.opts.Mtime.Format(time.RFC3339),
+			OriginalModeKey: strconv.Itoa(int(w.opts.Mode))}
+	}
+
+	objectName := w.path
+	if strings.HasPrefix(objectName, "/") {
+		objectName = objectName[1:]
+	}
+	_, err := w.client.minioClient.PutObject(w.bucket, objectName, r, int64(len(w.buf)), opts)
+	if err != nil {
+		w.client.logger.Error("obj %s put error (%v)", w.path, err)
+	}
 	return err
 }

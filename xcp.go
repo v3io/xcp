@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/v3io/xcp/backends"
 	"github.com/v3io/xcp/common"
-	"github.com/v3io/xcp/copydir"
+	"github.com/v3io/xcp/operators"
 	"os"
 )
 
@@ -43,19 +43,18 @@ func main() {
 		panic(err)
 	}
 
-	task := backends.CopyTask{
+	listTask := backends.ListDirTask{
 		Source:    src,
-		Target:    dst,
 		Since:     since,
 		Filter:    *filter,
 		Recursive: *recursive,
 		MaxSize:   int64(*maxSize),
 		MinSize:   int64(*minSize),
 		Hidden:    *hidden,
-		CopyEmpty: *copyEmpty,
+		InclEmpty: *copyEmpty,
 	}
 
-	if err := copydir.RunTask(&task, logger, *workers); err != nil {
+	if err := operators.CopyDir(&listTask, dst, logger, *workers); err != nil {
 		panic(err)
 	}
 }
