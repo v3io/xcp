@@ -48,7 +48,8 @@ func (c *LocalClient) ListDir(fileChan chan *FileDetails, task *ListDirTask, sum
 		fileDetails := &FileDetails{
 			Key: localPath, Size: fi.Size(), Mtime: fi.ModTime(), Mode: uint32(fi.Mode()), OriginalMtime: fi.ModTime(),
 		}
-		c.logger.DebugWith("List file", "key", localPath, "modified", fi.ModTime(), "size", fi.Size())
+		c.logger.DebugWith("List file", "key", localPath,
+			"modified", fi.ModTime(), "size", fi.Size(), "mode", fi.Mode())
 
 		summary.TotalBytes += fi.Size()
 		summary.TotalFiles += 1
