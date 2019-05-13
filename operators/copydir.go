@@ -1,8 +1,8 @@
 package operators
 
 import (
+	"fmt"
 	"github.com/nuclio/logger"
-	"github.com/pkg/errors"
 	"github.com/v3io/xcp/backends"
 	"io"
 	"path"
@@ -18,6 +18,7 @@ func endWithSlash(path string) bool {
 func CopyDir(task *backends.ListDirTask, target *backends.PathParams, logger logger.Logger, workers int) error {
 	fileChan := make(chan *backends.FileDetails, 1000)
 	summary := &backends.ListSummary{}
+	withMeta := task.WithMeta
 
 	if task.Source.Path != "" && !endWithSlash(task.Source.Path) {
 		task.Source.Path += "/"
@@ -26,7 +27,7 @@ func CopyDir(task *backends.ListDirTask, target *backends.PathParams, logger log
 	logger.InfoWith("copy task", "from", task.Source, "to", target)
 	client, err := backends.GetNewClient(logger, task.Source)
 	if err != nil {
-		return errors.Wrap(err, "failed to get list source")
+		return fmt.Errorf("failed to get list source, %v", err)
 	}
 
 	errChan := make(chan error, 60)
@@ -35,7 +36,7 @@ func CopyDir(task *backends.ListDirTask, target *backends.PathParams, logger log
 		var err error
 		err = client.ListDir(fileChan, task, summary)
 		if err != nil {
-			errChan <- errors.Wrap(err, "failed in list dir")
+			errChan <- fmt.Errorf("failed in list dir, %v", err)
 		}
 	}(errChan)
 
@@ -47,13 +48,13 @@ func CopyDir(task *backends.ListDirTask, target *backends.PathParams, logger log
 			defer wg.Done()
 			src, err := backends.GetNewClient(logger, task.Source)
 			if err != nil {
-				errChan <- errors.Wrap(err, "failed to get source")
+				errChan <- fmt.Errorf("failed to get source, %v", err)
 				return
 			}
 
 			dst, err := backends.GetNewClient(logger, target)
 			if err != nil {
-				errChan <- errors.Wrap(err, "failed to get target")
+				errChan <- fmt.Errorf("failed to get target, %v", err)
 				return
 			}
 
@@ -63,9 +64,9 @@ func CopyDir(task *backends.ListDirTask, target *backends.PathParams, logger log
 
 				logger.DebugWith("copy file", "src", f.Key, "dst", targetPath,
 					"bucket", target.Bucket, "size", f.Size, "mtime", f.Mtime)
-				err = copyFile(dst, src, f, targetPath)
+				err = copyFile(dst, src, f, targetPath, withMeta)
 				if err != nil {
-					errChan <- errors.Wrap(err, "failed in copy file")
+					errChan <- fmt.Errorf("failed in copy file, %v", err)
 					break
 				}
 				atomic.AddInt64(&transferred, 1)
@@ -86,7 +87,7 @@ func CopyDir(task *backends.ListDirTask, target *backends.PathParams, logger log
 	return nil
 }
 
-func copyFile(dst, src backends.FSClient, fileObj *backends.FileDetails, targetPath string) error {
+func copyFile(dst, src backends.FSClient, fileObj *backends.FileDetails, targetPath string, withMeta bool) error {
 
 	reader, err := src.Reader(fileObj.Key)
 	if err != nil {
@@ -94,7 +95,13 @@ func copyFile(dst, src backends.FSClient, fileObj *backends.FileDetails, targetP
 	}
 	defer reader.Close()
 
-	writer, err := dst.Writer(targetPath, nil)
+	opts := backends.FileMeta{}
+	if withMeta {
+		opts.Mode = fileObj.Mode
+		opts.Mtime = fileObj.Mtime
+	}
+
+	writer, err := dst.Writer(targetPath, &opts)
 	if err != nil {
 		return err
 	}

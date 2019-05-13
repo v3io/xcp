@@ -124,34 +124,41 @@ func (c *V3ioClient) getDir(path string, fileChan chan *FileDetails, summary *Li
 	return nil
 }
 
-func (c *V3ioClient) Reader(path string) (io.ReadCloser, error) {
+func (c *V3ioClient) Reader(path string) (FSReader, error) {
 	resp, err := c.container.Sync.GetObject(&v3io.GetObjectInput{Path: url.PathEscape(path)})
 	if err != nil {
 		return nil, fmt.Errorf("Error in GetObject operation (%v)", err)
 	}
 
-	return v3ioReader{reader: bytes.NewReader(resp.Body())}, nil
+	return &v3ioReader{reader: bytes.NewReader(resp.Body())}, nil
 }
 
 type v3ioReader struct {
 	reader io.Reader
 }
 
-func (r v3ioReader) Read(p []byte) (n int, err error) {
+func (r *v3ioReader) Read(p []byte) (n int, err error) {
 	return r.reader.Read(p)
 }
 
-func (r v3ioReader) Close() error {
+func (r *v3ioReader) Close() error {
 	return nil
 }
 
-func (c *V3ioClient) Writer(path string, opts *WriteOptions) (io.WriteCloser, error) {
-	return &v3ioWriter{path: path, container: c.container}, nil
+func (r *v3ioReader) Stat() (*FileMeta, error) {
+	// TBD return Mtime, ..
+	meta := FileMeta{}
+	return &meta, nil
+}
+
+func (c *V3ioClient) Writer(path string, opts *FileMeta) (io.WriteCloser, error) {
+	return &v3ioWriter{path: path, container: c.container, opts: opts}, nil
 }
 
 type v3ioWriter struct {
 	path      string
 	buf       []byte
+	opts      *FileMeta
 	container *v3io.Container
 }
 
@@ -161,6 +168,7 @@ func (w *v3ioWriter) Write(p []byte) (n int, err error) {
 }
 
 func (w *v3ioWriter) Close() error {
+	// TBD write time, mode, kv metadata
 	return w.container.Sync.PutObject(&v3io.PutObjectInput{Path: url.PathEscape(w.path), Body: w.buf})
 }
 

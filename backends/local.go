@@ -27,6 +27,10 @@ func (c *LocalClient) ListDir(fileChan chan *FileDetails, task *ListDirTask, sum
 	defer close(fileChan)
 
 	visit := func(localPath string, fi os.FileInfo, err error) error {
+		if err != nil {
+			c.logger.Error("List walk error with path %s, %v", localPath, err)
+			return err
+		}
 		localPath = filepath.ToSlash(localPath)
 
 		if fi.IsDir() {
@@ -46,10 +50,10 @@ func (c *LocalClient) ListDir(fileChan chan *FileDetails, task *ListDirTask, sum
 		}
 
 		fileDetails := &FileDetails{
-			Key: localPath, Size: fi.Size(), Mtime: fi.ModTime(), Mode: uint32(fi.Mode()), OriginalMtime: fi.ModTime(),
+			Key: localPath, Size: fi.Size(), Mtime: fi.ModTime(), Mode: uint32(fi.Mode()),
 		}
 		c.logger.DebugWith("List file", "key", localPath,
-			"modified", fi.ModTime(), "size", fi.Size(), "mode", fi.Mode())
+			"modified", fi.ModTime(), "size", fi.Size(), "mode", uint32(fi.Mode()))
 
 		summary.TotalBytes += fi.Size()
 		summary.TotalFiles += 1
@@ -61,11 +65,36 @@ func (c *LocalClient) ListDir(fileChan chan *FileDetails, task *ListDirTask, sum
 	return filepath.Walk(c.params.Path, visit)
 }
 
-func (c *LocalClient) Reader(path string) (io.ReadCloser, error) {
-	return os.Open(path)
+func (c *LocalClient) Reader(path string) (FSReader, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	return &fileReader{f}, err
 }
 
-func (c *LocalClient) Writer(path string, opts *WriteOptions) (io.WriteCloser, error) {
+type fileReader struct {
+	f *os.File
+}
+
+func (r *fileReader) Read(p []byte) (n int, err error) {
+	return r.f.Read(p)
+}
+
+func (r *fileReader) Close() error {
+	return r.f.Close()
+}
+
+func (r *fileReader) Stat() (*FileMeta, error) {
+	stat, err := r.f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	meta := FileMeta{Mtime: stat.ModTime(), Mode: uint32(stat.Mode())}
+	return &meta, err
+}
+
+func (c *LocalClient) Writer(path string, opts *FileMeta) (io.WriteCloser, error) {
 	if err := ValidFSTarget(path); err != nil {
 		return nil, err
 	}
@@ -102,6 +131,9 @@ func (w *fileWriter) Close() error {
 	err := w.f.Close()
 	if err != nil {
 		return err
+	}
+	if w.mtime.IsZero() {
+		return nil
 	}
 	return os.Chtimes(w.path, w.mtime, w.mtime)
 }

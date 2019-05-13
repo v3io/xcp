@@ -78,24 +78,10 @@ func (c *s3client) ListDir(fileChan chan *FileDetails, task *ListDirTask, summar
 			continue
 		}
 
-		var mode uint32
-		if obj.Metadata.Get(OriginalModeKey) != "" {
-			if i, err := strconv.Atoi(obj.Metadata.Get(OriginalModeKey)); err == nil {
-				mode = uint32(i)
-			}
-		}
-
-		var originalTime time.Time
-		if obj.Metadata.Get(OriginalMtimeKey) != "" {
-			if t, err := time.Parse(time.RFC3339, obj.Metadata.Get(OriginalMtimeKey)); err == nil {
-				originalTime = t
-			}
-		}
-
-		c.logger.DebugWith("List dir:", "key", obj.Key, "modified", obj.LastModified, "size", obj.Size)
+		c.logger.DebugWith("List dir:", "key", obj.Key,
+			"modified", obj.LastModified, "size", obj.Size)
 		fileDetails := &FileDetails{
-			Key: c.params.Bucket + "/" + obj.Key, Size: obj.Size,
-			Mtime: obj.LastModified, Mode: mode, OriginalMtime: originalTime,
+			Key: c.params.Bucket + "/" + obj.Key, Size: obj.Size, Mtime: obj.LastModified,
 		}
 
 		summary.TotalBytes += obj.Size
@@ -112,7 +98,7 @@ func (c *s3client) PutObject(objectPath, filePath string) (n int64, err error) {
 		context.Background(), bucket, objectName, filePath, minio.PutObjectOptions{})
 }
 
-func (c *s3client) Reader(path string) (io.ReadCloser, error) {
+func (c *s3client) Reader(path string) (FSReader, error) {
 	bucket, objectName := SplitPath(path)
 	if err := s3utils.CheckValidBucketName(bucket); err != nil {
 		return nil, err
@@ -123,12 +109,47 @@ func (c *s3client) Reader(path string) (io.ReadCloser, error) {
 
 	obj, err := c.minioClient.GetObject(bucket, objectName, minio.GetObjectOptions{})
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
-	return obj, nil
+	return &s3Reader{obj}, nil
 }
 
-func (c *s3client) Writer(path string, opts *WriteOptions) (io.WriteCloser, error) {
+type s3Reader struct {
+	obj *minio.Object
+}
+
+func (r *s3Reader) Read(p []byte) (n int, err error) {
+	return r.obj.Read(p)
+}
+
+func (r *s3Reader) Close() error {
+	return r.obj.Close()
+}
+
+func (r *s3Reader) Stat() (*FileMeta, error) {
+	stat, err := r.obj.Stat()
+	if err != nil {
+		return nil, err
+	}
+	var mode uint32
+	if stat.Metadata.Get(OriginalModeS3Key) != "" {
+		if i, err := strconv.Atoi(stat.Metadata.Get(OriginalModeS3Key)); err == nil {
+			mode = uint32(i)
+		}
+	}
+
+	modified := stat.LastModified
+	if stat.Metadata.Get(OriginalMtimeS3Key) != "" {
+		if t, err := time.Parse(time.RFC3339, stat.Metadata.Get(OriginalMtimeS3Key)); err == nil {
+			modified = t
+		}
+	}
+
+	meta := FileMeta{Mtime: modified, Mode: uint32(mode)}
+	return &meta, err
+}
+
+func (c *s3client) Writer(path string, opts *FileMeta) (io.WriteCloser, error) {
 	return &s3Writer{bucket: c.params.Bucket, path: path, client: c, opts: opts}, nil
 }
 
@@ -136,7 +157,7 @@ type s3Writer struct {
 	bucket string
 	path   string
 	buf    []byte
-	opts   *WriteOptions
+	opts   *FileMeta
 	client *s3client
 }
 

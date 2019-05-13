@@ -13,6 +13,9 @@ import (
 const OriginalMtimeKey = "original_mtime"
 const OriginalModeKey = "original_mode"
 
+const OriginalMtimeS3Key = "X-Amz-Meta-Original_mtime"
+const OriginalModeS3Key = "X-Amz-Meta-Original_mode"
+
 type ListDirTask struct {
 	Source    *PathParams
 	Since     time.Time
@@ -22,14 +25,14 @@ type ListDirTask struct {
 	Recursive bool
 	InclEmpty bool
 	Hidden    bool
+	WithMeta  bool
 }
 
 type FileDetails struct {
-	Key           string
-	Mtime         time.Time
-	OriginalMtime time.Time
-	Mode          uint32
-	Size          int64
+	Key   string
+	Mtime time.Time
+	Mode  uint32
+	Size  int64
 }
 
 type ListSummary struct {
@@ -49,15 +52,31 @@ type PathParams struct {
 	Token    string `json:"token,omitempty"`
 }
 
+func (p *PathParams) String() string {
+	return fmt.Sprintf("%s://%s/%s/%s", p.Kind, p.Endpoint, p.Bucket, p.Path)
+}
+
 type WriteOptions struct {
 	Mtime time.Time
 	Mode  uint32
 }
 
+type FileMeta struct {
+	Mtime time.Time
+	Mode  uint32
+	Attrs map[string]interface{}
+}
+
 type FSClient interface {
 	ListDir(fileChan chan *FileDetails, task *ListDirTask, summary *ListSummary) error
-	Reader(path string) (io.ReadCloser, error)
-	Writer(path string, opts *WriteOptions) (io.WriteCloser, error)
+	Reader(path string) (FSReader, error)
+	Writer(path string, opts *FileMeta) (io.WriteCloser, error)
+}
+
+type FSReader interface {
+	Read(p []byte) (n int, err error)
+	Close() error
+	Stat() (*FileMeta, error)
 }
 
 func GetNewClient(logger logger.Logger, params *PathParams) (FSClient, error) {
