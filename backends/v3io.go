@@ -89,7 +89,7 @@ func (c *V3ioClient) getDir(path string, fileChan chan *FileDetails, summary *Li
 			continue
 		}
 
-		t, err := time.Parse(time.RFC3339, obj.LastModified+"Z")
+		t, err := time.Parse(time.RFC3339, obj.LastModified)
 		if err != nil {
 			return errors.Wrap(err, "Invalid object time string - not an RFC 3339 time format.")
 		}

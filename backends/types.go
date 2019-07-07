@@ -21,11 +21,13 @@ type ListDirTask struct {
 	Since     time.Time
 	MinSize   int64
 	MaxSize   int64
-	Filter    string
 	Recursive bool
 	InclEmpty bool
 	Hidden    bool
 	WithMeta  bool
+
+	dir    string
+	filter string
 }
 
 type FileDetails struct {
@@ -50,15 +52,13 @@ type PathParams struct {
 	UserKey  string `json:"userKey,omitempty"`
 	Secret   string `json:"secret,omitempty"`
 	Token    string `json:"token,omitempty"`
+
+	filter string
+	isFile bool
 }
 
 func (p *PathParams) String() string {
 	return fmt.Sprintf("%s://%s/%s/%s", p.Kind, p.Endpoint, p.Bucket, p.Path)
-}
-
-type WriteOptions struct {
-	Mtime time.Time
-	Mode  uint32
 }
 
 type FileMeta struct {
@@ -145,12 +145,45 @@ func IsMatch(task *ListDirTask, name string, mtime time.Time, size int64) bool {
 		return false
 	}
 
-	if task.Filter != "" {
-		match, err := filepath.Match(task.Filter, name)
+	if task.Source.filter != "" {
+		match, err := filepath.Match(task.Source.filter, name)
 		if err != nil || !match {
 			return false
 		}
 	}
 
 	return true
+}
+
+// return is file, err
+func ParseFilename(fullpath string, params *PathParams, forceDir bool) error {
+	fullpath, filter := filepath.Split(fullpath)
+	if hasMagics(fullpath) {
+		return fmt.Errorf("No support for wildcard directoty names")
+	}
+	params.Path = fullpath
+	if filter == "" || hasMagics(filter) {
+		params.filter = filter
+		return nil
+	}
+
+	params.Path = fullpath + filter
+	if forceDir && !endWithSlash(params.Path) {
+		params.Path += "/"
+	}
+	params.isFile = true
+	return nil
+}
+
+func hasMagics(text string) bool {
+	for _, c := range text {
+		if c == '*' || c == '?' || c == '[' {
+			return true
+		}
+	}
+	return false
+}
+
+func endWithSlash(path string) bool {
+	return strings.HasSuffix(path, "/") || strings.HasSuffix(path, "\\")
 }

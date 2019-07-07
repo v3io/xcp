@@ -17,7 +17,6 @@ func main() {
 	maxSize := flag.Int("m", 0, "maximum file size")
 	minSize := flag.Int("n", 0, "minimum file size")
 	workers := flag.Int("w", 8, "num of worker routines")
-	filter := flag.String("f", "", "filter string e.g. *.png")
 	logLevel := flag.String("v", "debug", "log level: info | debug")
 	mtime := flag.String("t", "", "minimal file time e.g. 'now-7d' or RFC3339 date")
 	flag.Parse()
@@ -30,11 +29,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	src, err := common.UrlParse(args[0])
+	src, err := common.UrlParse(args[0], true)
 	if err != nil {
 		panic(err)
 	}
-	dst, err := common.UrlParse(args[1])
+	dst, err := common.UrlParse(args[1], true)
 	if err != nil {
 		panic(err)
 	}
@@ -46,7 +45,6 @@ func main() {
 	listTask := backends.ListDirTask{
 		Source:    src,
 		Since:     since,
-		Filter:    *filter,
 		Recursive: *recursive,
 		MaxSize:   int64(*maxSize),
 		MinSize:   int64(*minSize),

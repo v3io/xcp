@@ -14,11 +14,7 @@ func ListDir(task *backends.ListDirTask, logger logger.Logger) (*listResults, er
 		errChan:  make(chan error, 60),
 	}
 
-	if task.Source.Path != "" && !endWithSlash(task.Source.Path) {
-		task.Source.Path += "/"
-	}
-
-	logger.InfoWith("list task", "from", task.Source, "filter", task.Filter)
+	logger.InfoWith("list task", "from", task.Source)
 	client, err := backends.GetNewClient(logger, task.Source)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get list source, %v", err)

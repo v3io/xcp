@@ -11,18 +11,10 @@ import (
 	"sync/atomic"
 )
 
-func endWithSlash(path string) bool {
-	return strings.HasSuffix(path, "/") || strings.HasSuffix(path, "\\")
-}
-
 func CopyDir(task *backends.ListDirTask, target *backends.PathParams, logger logger.Logger, workers int) error {
 	fileChan := make(chan *backends.FileDetails, 1000)
 	summary := &backends.ListSummary{}
 	withMeta := task.WithMeta
-
-	if task.Source.Path != "" && !endWithSlash(task.Source.Path) {
-		task.Source.Path += "/"
-	}
 
 	logger.InfoWith("copy task", "from", task.Source, "to", target)
 	client, err := backends.GetNewClient(logger, task.Source)

@@ -33,9 +33,11 @@ func NewLogger(level string) (logger.Logger, error) {
 	return log, nil
 }
 
-func UrlParse(fullpath string) (*backends.PathParams, error) {
+func UrlParse(fullpath string, forceDir bool) (*backends.PathParams, error) {
 	if !strings.Contains(fullpath, "://") {
-		return &backends.PathParams{Path: fullpath}, nil
+		params := &backends.PathParams{}
+		err := backends.ParseFilename(fullpath, params, forceDir)
+		return params, err
 	}
 
 	u, err := url.Parse(fullpath)
@@ -43,12 +45,16 @@ func UrlParse(fullpath string) (*backends.PathParams, error) {
 		return nil, err
 	}
 
-	if strings.HasPrefix(u.Path, "/") {
-		u.Path = u.Path[1:]
-	}
 	pathParams := backends.PathParams{
 		Kind: strings.ToLower(u.Scheme),
 		Tag:  u.Fragment,
+	}
+	if strings.HasPrefix(u.Path, "/") {
+		u.Path = u.Path[1:]
+	}
+	err = backends.ParseFilename(u.Path, &pathParams, forceDir)
+	if err != nil {
+		return nil, err
 	}
 
 	password, hasPassword := u.User.Password()
@@ -63,20 +69,18 @@ func UrlParse(fullpath string) (*backends.PathParams, error) {
 	case "s3":
 		// TODO: region url
 		pathParams.Bucket = u.Host
-		pathParams.Path = u.Path
 	case "v3io", "v3ios":
 		pathParams.Secure = (pathParams.Kind == "v3ios")
 		pathParams.Kind = "v3io"
 		pathParams.Endpoint = u.Host
-		pathParams.Bucket, pathParams.Path = backends.SplitPath(u.Path)
+		pathParams.Bucket, pathParams.Path = backends.SplitPath(pathParams.Path)
 	case "http", "https":
 		pathParams.Secure = (pathParams.Kind == "https")
 		pathParams.Kind = "s3"
 		pathParams.Endpoint = u.Host
-		pathParams.Bucket, pathParams.Path = backends.SplitPath(u.Path)
+		pathParams.Bucket, pathParams.Path = backends.SplitPath(pathParams.Path)
 	default:
 		pathParams.Endpoint = u.Host
-		pathParams.Path = u.Path
 	}
 
 	return &pathParams, nil

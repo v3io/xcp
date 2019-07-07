@@ -26,7 +26,7 @@ type testLocalBackend struct {
 
 func (suite *testLocalBackend) SetupSuite() {
 	AWS_TEST_BUCKET = os.Getenv("AWS_TEST_BUCKET")
-	src, err := common.UrlParse(tempdir)
+	src, err := common.UrlParse(tempdir, true)
 	suite.Require().Nil(err)
 
 	client, err := backends.NewLocalClient(log, src)
@@ -51,7 +51,7 @@ func (suite *testLocalBackend) SetupSuite() {
 }
 
 func (suite *testLocalBackend) TestRead() {
-	src, err := common.UrlParse(tempdir)
+	src, err := common.UrlParse(tempdir, true)
 	suite.Require().Nil(err)
 
 	client, err := backends.NewLocalClient(log, src)
@@ -67,8 +67,9 @@ func (suite *testLocalBackend) TestRead() {
 
 func (suite *testLocalBackend) TestList() {
 
-	src, err := common.UrlParse(tempdir)
-	listTask := backends.ListDirTask{Source: src, Filter: "*.*"}
+	src, err := common.UrlParse(tempdir, true)
+	listTask := backends.ListDirTask{Source: src}
+	fmt.Println(src)
 	iter, err := operators.ListDir(&listTask, log)
 	suite.Require().Nil(err)
 
@@ -81,7 +82,8 @@ func (suite *testLocalBackend) TestList() {
 		summary.TotalFiles, summary.TotalBytes)
 	suite.Require().Equal(summary.TotalFiles, 2)
 
-	listTask = backends.ListDirTask{Source: src, Filter: "*.csv"}
+	src, _ = common.UrlParse(tempdir+"/*.csv", true)
+	listTask = backends.ListDirTask{Source: src}
 	iter, err = operators.ListDir(&listTask, log)
 	suite.Require().Nil(err)
 	_, err = iter.ReadAll()
@@ -94,21 +96,21 @@ func (suite *testLocalBackend) TestList() {
 }
 
 func (suite *testLocalBackend) TestCopyToS3() {
-	src, err := common.UrlParse(tempdir)
+	src, err := common.UrlParse(tempdir, true)
 	suite.Require().Nil(err)
 
-	listTask := backends.ListDirTask{Source: src, Filter: "*.*", WithMeta: true}
-	dst, err := common.UrlParse("s3://" + AWS_TEST_BUCKET + "/xcptests")
+	listTask := backends.ListDirTask{Source: src, WithMeta: true}
+	dst, err := common.UrlParse("s3://"+AWS_TEST_BUCKET+"/xcptests/*.*", true)
 	suite.Require().Nil(err)
 
 	err = operators.CopyDir(&listTask, dst, log, 1)
 	suite.Require().Nil(err)
 
 	// read list dir content from S3
-	listTask = backends.ListDirTask{Source: dst, Filter: "*.*"}
+	listTask = backends.ListDirTask{Source: dst}
 	dstdir, err := ioutil.TempDir("", "xcptest-dst")
 	suite.Require().Nil(err)
-	newdst, err := common.UrlParse(dstdir)
+	newdst, err := common.UrlParse(dstdir, true)
 	suite.Require().Nil(err)
 
 	err = operators.CopyDir(&listTask, newdst, log, 1)
