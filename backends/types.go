@@ -159,7 +159,7 @@ func IsMatch(task *ListDirTask, name string, mtime time.Time, size int64) bool {
 func ParseFilename(fullpath string, params *PathParams, forceDir bool) error {
 	fullpath, filter := filepath.Split(fullpath)
 	if hasMagics(fullpath) {
-		return fmt.Errorf("No support for wildcard directoty names")
+		return fmt.Errorf("No support for wildcard directory names")
 	}
 	params.Path = fullpath
 	if filter == "" || hasMagics(filter) {
