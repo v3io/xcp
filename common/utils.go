@@ -72,7 +72,7 @@ func UrlParse(fullpath string, forceDir bool) (*backends.PathParams, error) {
 	case "v3io", "v3ios":
 		pathParams.Secure = (pathParams.Kind == "v3ios")
 		pathParams.Kind = "v3io"
-		pathParams.Endpoint = u.Host
+		pathParams.Endpoint = "http://" + u.Host
 		pathParams.Bucket, pathParams.Path = backends.SplitPath(pathParams.Path)
 	case "http", "https":
 		pathParams.Secure = (pathParams.Kind == "https")
