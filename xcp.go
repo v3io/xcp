@@ -17,7 +17,7 @@ func main() {
 	maxSize := flag.Int("m", 0, "maximum file size")
 	minSize := flag.Int("n", 0, "minimum file size")
 	workers := flag.Int("w", 8, "num of worker routines")
-	logLevel := flag.String("v", "debug", "log level: info | debug")
+	logLevel := flag.String("v", "info", "log level: info | debug")
 	mtime := flag.String("t", "", "minimal file time e.g. 'now-7d' or RFC3339 date")
 	flag.Parse()
 
