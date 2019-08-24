@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"github.com/nuclio/logger"
 	"github.com/pkg/errors"
-	"github.com/v3io/v3io-go-http"
+	v3io "github.com/v3io/v3io-go/pkg/dataplane"
+	v3iohttp "github.com/v3io/v3io-go/pkg/dataplane/http"
 	"io"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -34,7 +34,7 @@ type V3ioClientOpts struct {
 
 type V3ioClient struct {
 	params    *PathParams
-	container *v3io.Container
+	container v3io.Container
 	logger    logger.Logger
 	task      *ListDirTask
 	path      string
@@ -49,11 +49,10 @@ func NewV3ioClient(logger logger.Logger, params *PathParams) (FSClient, error) {
 	}
 	params.Endpoint = defaultFromEnv(params.Endpoint, V3ioPathEnvironmentVariable)
 
-	config := v3io.SessionConfig{
-		Username:   params.UserKey,
-		Password:   params.Secret,
-		Label:      "xcopy",
-		SessionKey: params.Token}
+	config := v3io.NewSessionInput{
+		Username:  params.UserKey,
+		Password:  params.Secret,
+		AccessKey: params.Token}
 
 	newContainer, err := CreateContainer(logger, params.Endpoint, params.Bucket, &config, 0)
 	if err != nil {
@@ -75,13 +74,13 @@ func (c *V3ioClient) ListDir(fileChan chan *FileDetails, task *ListDirTask, summ
 
 func (c *V3ioClient) getDir(path string, fileChan chan *FileDetails, summary *ListSummary) error {
 
-	resp, err := c.container.Sync.ListBucket(&v3io.ListBucketInput{Path: path})
+	resp, err := c.container.GetContainerContentsSync(&v3io.GetContainerContentsInput{Path: path})
 	if err != nil {
 		c.logger.ErrorWith("ListBucket failed", "endpoint", c.params.Endpoint, "container",
 			c.params.Bucket, "path", path)
 		return errors.Wrap(err, "failed v3io ListBucket")
 	}
-	result := resp.Output.(*v3io.ListBucketOutput)
+	result := resp.Output.(*v3io.GetContainerContentsOutput)
 
 	for _, obj := range result.Contents {
 
@@ -93,7 +92,10 @@ func (c *V3ioClient) getDir(path string, fileChan chan *FileDetails, summary *Li
 		if err != nil {
 			return errors.Wrap(err, "Invalid object time string - not an RFC 3339 time format.")
 		}
-		size := int64(obj.Size)
+		var size int64
+		if obj.Size != nil {
+			size = int64(*obj.Size)
+		}
 		_, name := filepath.Split(obj.Key)
 
 		if !IsMatch(c.task, name, t, size) {
@@ -125,7 +127,7 @@ func (c *V3ioClient) getDir(path string, fileChan chan *FileDetails, summary *Li
 }
 
 func (c *V3ioClient) Reader(path string) (FSReader, error) {
-	resp, err := c.container.Sync.GetObject(&v3io.GetObjectInput{Path: url.PathEscape(path)})
+	resp, err := c.container.GetObjectSync(&v3io.GetObjectInput{Path: path})
 	if err != nil {
 		return nil, fmt.Errorf("Error in GetObject operation (%v)", err)
 	}
@@ -159,7 +161,7 @@ type v3ioWriter struct {
 	path      string
 	buf       []byte
 	opts      *FileMeta
-	container *v3io.Container
+	container v3io.Container
 }
 
 func (w *v3ioWriter) Write(p []byte) (n int, err error) {
@@ -169,24 +171,25 @@ func (w *v3ioWriter) Write(p []byte) (n int, err error) {
 
 func (w *v3ioWriter) Close() error {
 	// TBD write time, mode, kv metadata
-	return w.container.Sync.PutObject(&v3io.PutObjectInput{Path: url.PathEscape(w.path), Body: w.buf})
+	return w.container.PutObjectSync(&v3io.PutObjectInput{Path: w.path, Body: w.buf})
 }
 
-func CreateContainer(logger logger.Logger, addr, cont string, config *v3io.SessionConfig, workers int) (*v3io.Container, error) {
+func CreateContainer(logger logger.Logger, addr, cont string, config *v3io.NewSessionInput, workers int) (v3io.Container, error) {
 	// Create context
-	context, err := v3io.NewContext(logger, addr, workers)
+	contextInput := v3io.NewContextInput{ClusterEndpoints: []string{addr}, NumWorkers: workers}
+	context, err := v3iohttp.NewContext(logger, &contextInput)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create a V3IO client.")
 	}
 
 	// Create session
-	session, err := context.NewSessionFromConfig(config)
+	session, err := context.NewSession(config)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create a session.")
 	}
 
 	// Create the container
-	container, err := session.NewContainer(cont)
+	container, err := session.NewContainer(&v3io.NewContainerInput{ContainerName: cont})
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create a container.")
 	}
