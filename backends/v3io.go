@@ -48,6 +48,13 @@ func NewV3ioClient(logger logger.Logger, params *PathParams) (FSClient, error) {
 		params.Token = defaultFromEnv(params.Token, V3ioSessionKeyEnvironmentVariable)
 	}
 	params.Endpoint = defaultFromEnv(params.Endpoint, V3ioPathEnvironmentVariable)
+	if !strings.HasPrefix(params.Endpoint, "http://") && !strings.HasPrefix(params.Endpoint, "https://") {
+		if params.Secure {
+			params.Endpoint = "https://" + params.Endpoint
+		} else {
+			params.Endpoint = "http://" + params.Endpoint
+		}
+	}
 
 	config := v3io.NewSessionInput{
 		Username:  params.UserKey,
