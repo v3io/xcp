@@ -13,8 +13,6 @@ import (
 	"time"
 )
 
-const defaultWorkers = 0
-
 const (
 	V3ioPathEnvironmentVariable       = "V3IO_API"
 	V3ioUserEnvironmentVariable       = "V3IO_USERNAME"
@@ -81,54 +79,62 @@ func (c *V3ioClient) ListDir(fileChan chan *FileDetails, task *ListDirTask, summ
 
 func (c *V3ioClient) getDir(path string, fileChan chan *FileDetails, summary *ListSummary) error {
 
-	resp, err := c.container.GetContainerContentsSync(&v3io.GetContainerContentsInput{Path: path})
-	if err != nil {
-		c.logger.ErrorWith("ListBucket failed", "endpoint", c.params.Endpoint, "container",
-			c.params.Bucket, "path", path)
-		return errors.Wrap(err, "failed v3io ListBucket")
-	}
-	result := resp.Output.(*v3io.GetContainerContentsOutput)
-
-	for _, obj := range result.Contents {
-
-		if strings.HasSuffix(obj.Key, "/") {
-			continue
-		}
-
-		t, err := time.Parse(time.RFC3339, obj.LastModified)
+	req := v3io.GetContainerContentsInput{Path: path}
+	for {
+		resp, err := c.container.GetContainerContentsSync(&req)
 		if err != nil {
-			return errors.Wrap(err, "Invalid object time string - not an RFC 3339 time format.")
+			c.logger.ErrorWith("ListBucket failed", "endpoint", c.params.Endpoint, "container",
+				c.params.Bucket, "path", path)
+			return errors.Wrap(err, "failed v3io ListBucket")
 		}
-		var size int64
-		if obj.Size != nil {
-			size = int64(*obj.Size)
+		result := resp.Output.(*v3io.GetContainerContentsOutput)
+
+		for _, obj := range result.Contents {
+
+			if strings.HasSuffix(obj.Key, "/") {
+				continue
+			}
+
+			t, err := time.Parse(time.RFC3339, obj.LastModified)
+			if err != nil {
+				return errors.Wrap(err, "Invalid object time string - not an RFC 3339 time format.")
+			}
+			var size int64
+			if obj.Size != nil {
+				size = int64(*obj.Size)
+			}
+			_, name := filepath.Split(obj.Key)
+
+			if !IsMatch(c.task, name, t, size) {
+				continue
+			}
+
+			c.logger.DebugWith("List dir:", "key", obj.Key, "modified", obj.LastModified, "size", obj.Size)
+			fileDetails := &FileDetails{
+				Key: obj.Key, Size: size, //Mtime: obj.LastModified,
+			}
+
+			summary.TotalBytes += size
+			summary.TotalFiles += 1
+			fileChan <- fileDetails
 		}
-		_, name := filepath.Split(obj.Key)
 
-		if !IsMatch(c.task, name, t, size) {
-			continue
-		}
-
-		c.logger.DebugWith("List dir:", "key", obj.Key, "modified", obj.LastModified, "size", obj.Size)
-		fileDetails := &FileDetails{
-			Key: obj.Key, Size: size, //Mtime: obj.LastModified,
-		}
-
-		summary.TotalBytes += size
-		summary.TotalFiles += 1
-		fileChan <- fileDetails
-	}
-
-	if c.task.Recursive {
-		for _, val := range result.CommonPrefixes {
-			_, name := filepath.Split(val.Prefix[0 : len(val.Prefix)-1])
-			if c.task.Hidden || !strings.HasPrefix(name, ".") {
-				err = c.getDir(val.Prefix, fileChan, summary)
-				if err != nil {
-					return err
+		if c.task.Recursive {
+			for _, val := range result.CommonPrefixes {
+				_, name := filepath.Split(val.Prefix[0 : len(val.Prefix)-1])
+				if c.task.Hidden || !strings.HasPrefix(name, ".") {
+					err = c.getDir(val.Prefix, fileChan, summary)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
+
+		if !result.IsTruncated {
+			break
+		}
+		req.Marker = result.NextMarker
 	}
 	return nil
 }
