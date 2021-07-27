@@ -12,10 +12,10 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337 // indirect
 	github.com/stretchr/testify v1.4.0
-	github.com/v3io/v3io-go v0.0.0-20190804122140-7a7baa9fe04ff8591cb4b22270d598b36fc0d49a
+	github.com/tinylib/msgp v1.1.6 // indirect
+	github.com/v3io/v3io-go v0.0.0-20190804122140-7a7baa9fe04f
 	github.com/valyala/fasthttp v1.4.0 // indirect
 	go.uber.org/atomic v1.4.0 // indirect
-	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
-	golang.org/x/net v0.0.0-20190813141303-74dc4d7220e7 // indirect
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	gopkg.in/ini.v1 v1.46.0 // indirect
 )
