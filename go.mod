@@ -16,6 +16,6 @@ require (
 	github.com/v3io/v3io-go v0.0.0-20190804122140-7a7baa9fe04f
 	github.com/valyala/fasthttp v1.4.0 // indirect
 	go.uber.org/atomic v1.4.0 // indirect
-	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+	golang.org/x/crypto v0.1.0
 	gopkg.in/ini.v1 v1.46.0 // indirect
 )
