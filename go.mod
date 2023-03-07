@@ -14,8 +14,8 @@ require (
 	github.com/stretchr/testify v1.4.0
 	github.com/tinylib/msgp v1.1.6 // indirect
 	github.com/v3io/v3io-go v0.0.0-20190804122140-7a7baa9fe04f
-	github.com/valyala/fasthttp v1.4.0 // indirect
+	github.com/valyala/fasthttp v1.34.0 // indirect
 	go.uber.org/atomic v1.4.0 // indirect
-	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
 	gopkg.in/ini.v1 v1.46.0 // indirect
 )
